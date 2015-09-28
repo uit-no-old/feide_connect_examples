@@ -5,7 +5,7 @@ Minimalistic service written in Python3 using the aiohttp server. Just lets a us
 
 ### Configure it
 
-You need to configure at least the Feide Connect client ID and secret (get these on the [Feide Connect Dashboard](https://dashboard.feideconnect.no/). You can do this in any of the following ways:
+You need to configure at least the Feide Connect client ID and secret (get these on the [Feide Connect Dashboard](https://dashboard.feideconnect.no/)). You can do this in any of the following ways:
 - use the `--client-id` and `--client-secret` command line options
 - set `FC_CLIENT_ID` and `FC_CLIENT_SECRET` environment variables
 - edit [server.py](server.py) (look for `_config` near the beginning of the file)
