@@ -122,7 +122,7 @@ def login_success_page(request):
             response = yield from connect_oauth.request(
                     q[0], q[1], params = q[2])
             text = yield from response.read()
-            text = "{}".format(text.decode('utf-8'))
+            text = text.decode('utf-8')
         except Exception as e:
             text = "Error: {}".format(e)
 
