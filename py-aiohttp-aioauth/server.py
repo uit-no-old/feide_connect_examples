@@ -48,6 +48,16 @@ class FeideConnectClient(OAuth2Client):
         yield 'email', user.get('email')
         yield 'picture', user.get('profilephoto')
 
+    # workaround around the following issue: Feide Connect APIs expect a header
+    # "Authorization: Bearer TOKEN", but aioauth_client doesn't do that in
+    # requests.
+    def request(self, method, url, params = None, headers = None,
+            timeout = 10, **aio_kwargs):
+        headers = headers or {}
+        if self.access_token:
+            headers.update({"Authorization": "Bearer {}".format(self.access_token)})
+        return super().request(method, url, params, headers, timeout, **aio_kwargs)
+
 connect_oauth = None # instantiated in init_server
 
 
@@ -110,10 +120,7 @@ def login_success_page(request):
     for q in queries:
         try:
             response = yield from connect_oauth.request(
-                    q[0], q[1], params = q[2],
-                    headers = { # workaround for bug(?) in aioauth_client
-                        "Authorization": "Bearer {}".format(connect_oauth.access_token)
-                        })
+                    q[0], q[1], params = q[2])
             text = yield from response.read()
             text = "{}".format(text.decode('utf-8'))
         except Exception as e:
