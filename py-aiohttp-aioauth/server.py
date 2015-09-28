@@ -100,8 +100,8 @@ def login_success_page(request):
     yield from out.drain()
 
     queries = [ # method, url, params
-            ('GET', 'https://groups-api.feideconnect.no/groups/me/groups', {}),
             ('GET', 'https://auth.feideconnect.no/userinfo', {}),
+            ('GET', 'https://groups-api.feideconnect.no/groups/me/groups', {}),
             ('GET', 'https://api.feideconnect.no/peoplesearch/orgs', {}),
             ('GET', 'https://api.feideconnect.no/peoplesearch/people',
               { 'org' : 'uninett.no',
