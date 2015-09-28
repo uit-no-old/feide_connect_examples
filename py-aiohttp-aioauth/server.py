@@ -14,7 +14,7 @@ _config = {
         # so replace them with your own.
         "client_id" : "f1343f3a-79cc-424f-9233-5fe33f8bbd56", # ENTER YOUR CLIENT ID HERE
         "client_secret": "c6217e17-1e32-41b7-a597-e852cec0eaf3", # ENTER YOUR CLIENT SECRET HERE
-        "scopes" : "userinfo userinfo-mail groups", # ENTER YOUR SCOPES HERE
+        "scopes" : "peoplesearch openid userinfo userinfo-mail userinfo-feide userinfo-photo groups", # ENTER YOUR SCOPES HERE
         "port": 8000,
         }
 _log = logging.getLogger(__name__)
