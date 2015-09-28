@@ -91,11 +91,40 @@ def login_success_page(request):
     assert token
     _log.debug("got bearer token {}".format(data))
 
-    # now we can get some info about the user from Feide Connect.
-    response = yield from connect_oauth.request(
-            'GET', 'https://auth.feideconnect.no/userinfo')
-    body = yield from response.read()
-    return web.Response(body = body, content_type = 'application/json')
+    # now we can get some info about the user from Feide Connect and present it
+    # to the user
+    out = web.StreamResponse()
+    out.content_type = "text/plain"
+    out.start(request)
+    out.write("Login successful. Doing some API calls now:\n\n".encode('utf-8'))
+    yield from out.drain()
+
+    queries = [ # method, url, params
+            ('GET', 'https://groups-api.feideconnect.no/groups/me/groups', {}),
+            ('GET', 'https://auth.feideconnect.no/userinfo', {}),
+            ('GET', 'https://api.feideconnect.no/peoplesearch/orgs', {}),
+            ('GET', 'https://api.feideconnect.no/peoplesearch/people',
+              { 'org' : 'uninett.no',
+                'query' : 'andreas'}),
+            ]
+    for q in queries:
+        try:
+            response = yield from connect_oauth.request(
+                    q[0], q[1], params = q[2],
+                    headers = { # workaround for bug(?) in aioauth_client
+                        "Authorization": "Bearer {}".format(connect_oauth.access_token)
+                        })
+            text = yield from response.read()
+            text = "{}".format(text.decode('utf-8'))
+        except Exception as e:
+            text = "Error: {}".format(e)
+
+        out.write("{}\n{}\n\n".format(q, text).encode('utf-8'))
+        yield from out.drain()
+
+    yield from out.write_eof()
+    return out
+
 
 
 
