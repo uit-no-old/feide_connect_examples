@@ -5,9 +5,12 @@ Minimalistic service written in Python3 using the aiohttp server. Just lets a us
 
 ### Configure it
 
-Edit [server.py](server.py) and replace the client id and client secret in the config dictionary near the beginning of the file with your client id and secret. You can get a client id and secret on the [Feide Connect Dashboard](https://dashboard.feideconnect.no/).
+You need to configure at least the Feide Connect client ID and secret (get these on the [Feide Connect Dashboard](https://dashboard.feideconnect.no/). You can do this in any of the following ways:
+- use the `--client-id` and `--client-secret` command line options
+- set `FC_CLIENT_ID` and `FC_CLIENT_SECRET` environment variables
+- edit [server.py](server.py) (look for `_config` near the beginning of the file)
 
-You can also configure the scopes your client should have access to. Make sure that any scope you set in the client is also configured on the Feide Connect Dashboard.
+You can also configure the scopes your client should have access to, by editing server.py. Make sure that any scope you set in the client is also configured on the Feide Connect Dashboard.
 
 
 ### Run it
@@ -25,7 +28,7 @@ pip3 install -r pip3-req.txt
 Then you can just run the service like so:
 
 ```sh
-./py-env/bin/python3 server.py [-p PORT]
+./py-env/bin/python3 server.py [--client-id ID] [--client-secret SECRET] [-p PORT]
 ```
 
-By default, the service will listen on port 8000.
+By default, the service will listen on port 8000. There are defaults for client ID and secret that are invalid and should cause Feide Connect to abort any login attempt.

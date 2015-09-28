@@ -9,11 +9,12 @@ from aioauth_client import OAuth2Client
 
 
 _config = {
-        # the following parameters identify our client and can be taken from
-        # the Feide Connect Dashboard. The concrete values here are not valid,
-        # so replace them with your own.
-        "client_id" : "f1343f3a-79cc-424f-9233-5fe33f8bbd56", # ENTER YOUR CLIENT ID HERE
-        "client_secret": "c6217e17-1e32-41b7-a597-e852cec0eaf3", # ENTER YOUR CLIENT SECRET HERE
+        # client id and secret identify our client to Feide Connect and can be
+        # obtained on the Feide Connect Dashboard. The concrete values here are
+        # not valid, so replace them with your own or configure them at
+        # runtime.
+        "client_id" : "f1343f3a-79cc-424f-9233-5fe33f8bbd56",
+        "client_secret": "c6217e17-1e32-41b7-a597-e852cec0eaf3",
         "scopes" : "peoplesearch openid userinfo userinfo-mail userinfo-feide userinfo-photo groups", # ENTER YOUR SCOPES HERE
         "port": 8000,
         }
@@ -126,17 +127,22 @@ def init_server(loop):
 @click.command()
 @click.option("--port", "-p", type = int, default = _config["port"],
         help = "Port the service listens on.")
-def run(port):
+@click.option("--client-id", default = _config["client_id"],
+        help = "Feide Connect client ID (get on Feide Connect Dashboard).")
+@click.option("--client-secret", default = _config["client_secret"],
+        help = "Feide Connect client secret (get on Feide Connect Dashboard).")
+def run(**kwargs): # kwargs are port, client_id, client_secret
     """Minimalistic service using Feide Connect for OAuth2 login.
     Press Ctrl+C to terminate.
     """
     logging.basicConfig(level = logging.DEBUG)
     loop = asyncio.get_event_loop()
 
-    _config["port"] = port
+    _config.update(kwargs)
 
     loop.run_until_complete(init_server(loop))
-    _log.info("Service listening on port {}. Press Ctrl+C to terminate.".format(port))
+    _log.info("Service listening on port {}. Press Ctrl+C to terminate.".
+            format(kwargs["port"]))
 
     try:
         loop.run_forever()
@@ -146,4 +152,4 @@ def run(port):
 
 
 if __name__ == "__main__":
-    run()
+    run(auto_envvar_prefix = "FC")
