@@ -35,18 +35,8 @@ class FeideConnectClient(OAuth2Client):
 
     access_token_url = "https://auth.feideconnect.no/oauth/token"
     authorize_url = "https://auth.feideconnect.no/oauth/authorization"
-    #base_url = ""
     name = "Feide Connect"
-    user_info_url = "https://auth.feideconnect.no/userinfo"
-
-    @staticmethod
-    def user_parse(data):
-        user = data.get('user')
-        yield 'id', user.get('userid')
-        yield 'id_sec', user.get('userid_sec')[0] # "feide:abc123@uit.no"
-        yield 'name', user.get('name')
-        yield 'email', user.get('email')
-        yield 'picture', user.get('profilephoto')
+    #user_info_url = "https://auth.feideconnect.no/userinfo"
 
     # workaround around the following issue: Feide Connect APIs expect a header
     # "Authorization: Bearer TOKEN", but aioauth_client doesn't do that in
