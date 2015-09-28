@@ -7,8 +7,17 @@ import click
 from aiohttp import web
 from aioauth_client import OAuth2Client
 
+
+_config = {
+        # the following parameters identify our client and can be taken from
+        # the Feide Connect Dashboard. The concrete values here are not valid,
+        # so replace them with your own.
+        "client_id" : "f1343f3a-79cc-424f-9233-5fe33f8bbd56", # ENTER YOUR CLIENT ID HERE
+        "client_secret": "c6217e17-1e32-41b7-a597-e852cec0eaf3", # ENTER YOUR CLIENT SECRET HERE
+        "scopes" : "userinfo userinfo-mail groups", # ENTER YOUR SCOPES HERE
+        "port": 8000,
+        }
 _log = logging.getLogger(__name__)
-_config = {}
 
 
 ### OAuth2 client for Feide Connect
@@ -58,8 +67,7 @@ def login_page(request):
     # pass the "scopes" we want to Feide Connect. We can only use scopes that
     # we have configured on the Connect Dashboard.
     redirect_url = connect_oauth.get_authorize_url(
-            scope = "userinfo-mail userinfo groups"
-            #scope = "userinfo"
+            scope = _config["scopes"]
             )
     _log.debug("login page redirects user to {}".format(redirect_url))
     return web.HTTPFound(redirect_url)
@@ -99,10 +107,8 @@ def init_server(loop):
 
     global connect_oauth
     connect_oauth = FeideConnectClient(
-            # the following parameters identify our client and
-            # are taken from the Feide Connect Dashboard
-            client_id = "f1343f3a-79cc-424f-9233-5fe33f8bbd56",
-            client_secret = "c6217e17-1e32-41b7-a597-e852cec0eaf3",
+            client_id = _config["client_id"],
+            client_secret = _config["client_secret"],
             # the redirect_uri parameter is optional in OAuth, but not in
             # OpenID, which Feide Connect also supports. If you enable OpenID
             # by specifying the "openid" scope in get_authorize_url, you must have
@@ -118,7 +124,7 @@ def init_server(loop):
 ### Program start and main loop
 
 @click.command()
-@click.option("--port", "-p", type = int, default = 8000,
+@click.option("--port", "-p", type = int, default = _config["port"],
         help = "Port the service listens on.")
 def run(port):
     """Minimalistic service using Feide Connect for OAuth2 login.
