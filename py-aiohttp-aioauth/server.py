@@ -107,16 +107,16 @@ def login_success_page(request):
               { 'org' : 'uninett.no',
                 'query' : 'andreas'}),
             ]
-    for q in queries:
+    reqs = [ connect_oauth.request(q[0], q[1], params = q[2]) for q in queries ]
+    for req in asyncio.as_completed(reqs):
+        response = yield from req
         try:
-            response = yield from connect_oauth.request(
-                    q[0], q[1], params = q[2])
             text = yield from response.read()
             text = text.decode('utf-8')
         except Exception as e:
             text = "Error: {}".format(e)
 
-        out.write("{}\n{}\n\n".format(q, text).encode('utf-8'))
+        out.write("{}\n{}\n\n\n".format(response.url, text).encode('utf-8'))
         yield from out.drain()
 
     yield from out.write_eof()
