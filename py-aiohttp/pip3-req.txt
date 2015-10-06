@@ -1,3 +1,2 @@
 aiohttp
-aioauth-client
 click

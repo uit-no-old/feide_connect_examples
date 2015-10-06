@@ -2,10 +2,11 @@
 
 import logging
 import asyncio
+import urllib.parse
 
 import click
+import aiohttp
 from aiohttp import web
-from aioauth_client import OAuth2Client
 
 
 _config = {
@@ -21,36 +22,6 @@ _config = {
 _log = logging.getLogger(__name__)
 
 
-### OAuth2 client for Feide Connect
-
-class FeideConnectClient(OAuth2Client):
-    """OAuth2 client for Feide Connect. This is still generic, not tied to our
-    example app. The app-specific information comes into play only when we
-    instantiate this.
-
-    * Dashboard: https://dashboard.feideconnect.no
-    * Docs: http://feideconnect.no/docs/authorization/
-    * API reference: N/A
-    """
-
-    access_token_url = "https://auth.feideconnect.no/oauth/token"
-    authorize_url = "https://auth.feideconnect.no/oauth/authorization"
-    name = "Feide Connect"
-    #user_info_url = "https://auth.feideconnect.no/userinfo"
-
-    # workaround around the following issue: Feide Connect APIs expect a header
-    # "Authorization: Bearer TOKEN", but aioauth_client doesn't do that in
-    # requests.
-    def request(self, method, url, params = None, headers = None,
-            timeout = 10, **aio_kwargs):
-        headers = headers or {}
-        if self.access_token:
-            headers.update({"Authorization": "Bearer {}".format(self.access_token)})
-        return super().request(method, url, params, headers, timeout, **aio_kwargs)
-
-connect_oauth = None # instantiated in init_server
-
-
 ### HTTP handlers, ordered by OAuth2 flow
 
 @asyncio.coroutine
@@ -62,14 +33,38 @@ def main_page(request):
 @asyncio.coroutine
 def login_page(request):
     # we want the user to log in using Feide Connect, so we'll redirect her
-    # there. Feide Connect will later redirect her back to us, to a URL we
-    # configured on the Connect Dashboard (/login_success/).
-    # we also want to have access to some information about the user, so we
-    # pass the "scopes" we want to Feide Connect. We can only use scopes that
-    # we have configured on the Connect Dashboard.
-    redirect_url = connect_oauth.get_authorize_url(
-            scope = _config["scopes"]
-            )
+    # there. In OAuth parlance, this constitutes an "Authorization Request"
+    # (check http://tools.ietf.org/html/rfc6749#section-4.1.1 ).
+    # Feide Connect will later redirect her back to us, to a URL we configured
+    # on the Connect Dashboard (/login_success/ in this case).
+    auth_url = "https://auth.feideconnect.no/oauth/authorization"
+    params = {
+            "response_type": "code",
+                # specifies the OAuth workflow ("grant type") to use.
+                # Server-based apps usually use "code".
+
+            "client_id": _config["client_id"],
+
+            "redirect_uri": "http://localhost:{}/login_success/".format(
+                _config["port"]),
+                # this parameter is optional. The URL must be one that is also
+                # registered on the Feide Connect Dashboard.
+
+            "scope": _config["scopes"],
+                # this optional parameter defines what information we want to
+                # be authorized to see. We can only use scopes that we have
+                # configured on the Connect Dashboard.
+
+            "state": "some_opaque_string",
+                # this optional parameter can be used to map a request we make
+                # here to the redirect Feide Connect does later. Feide Connect
+                # will send that parameter back to us then. It is not
+                # mandatory, but recommended to do this, to prevent cross-site
+                # request forgery.
+            }
+
+    redirect_url = "{}?{}".format(auth_url, urllib.parse.urlencode(params))
+
     _log.debug("login page redirects user to {}".format(redirect_url))
     return web.HTTPFound(redirect_url)
 
@@ -82,17 +77,63 @@ def login_success_page(request):
     code = request.GET.get('code', None)
     if not code:
         return web.Response(body = "No 'code' parameter, no login.".encode('utf-8'))
+    # Feide Connect also sent back the "state" parameter we gave it earlier
+    state = request.GET.get("state", None)
+    if state != "some_opaque_string":
+        return web.Response(body = "No (or wrong) 'state' parameter, no login.".
+                encode('utf-8'))
 
-    # we can use that code to get an access token from Feide Connect. Even a
-    # maliciously forged 'code' parameter should not be problematic here (in
-    # theory). If something went wrong, connect_oauth raises a
-    # web.HTTPBadRequest, which is nice.
-    token, data = yield from connect_oauth.get_access_token(code)
-    assert token
-    _log.debug("got bearer token {}".format(data))
+    # we are now supposed to use the authorization code to get an access token
+    # from Feide Connect, through a so-called "Access Token Request" HTTP POST
+    # (http://tools.ietf.org/html/rfc6749#section-4.1.3 ).
+    token_req_url = "https://auth.feideconnect.no/oauth/token"
 
-    # now we can get some info about the user from Feide Connect and present it
-    # to the user
+    auth_header = aiohttp.helpers.BasicAuth(login = _config["client_id"],
+            password = _config["client_secret"])
+    # the client (i.e. we) have to send both the client id and the client secret to
+    # Feide Connect. This can be done either with an HTTP basic auth header, or by
+    # including a client_secret post parameter. We do the HTTP basic auth header.
+
+    params = {
+            "client_id": _config["client_id"],
+                # this parameter must always be specified, no matter whether we
+                # send basic auth headers or not
+
+            #"client_secret": _config["client_secret"],
+                # this one we need only if we don't send an auth header
+
+            "grant_type": "authorization_code",
+            "code": code,
+
+            "redirect_uri": "http://localhost:{}/login_success/".format(
+                _config["port"]),
+                # if this parameter was given in the authorization request
+                # earlier, it must also be given here, and the value must be
+                # the same
+            }
+    _log.debug("POSTing access token request with code {} to {}".format(
+        code, token_req_url))
+    response = yield from aiohttp.post(token_req_url,
+            #data = params, headers = headers)
+            data = params, auth = auth_header)
+            #data = params)
+
+    # if response's HTTP status is not 200, we must bail out
+    if response.status != 200:
+        error_text = yield from response.text()
+        msg = "error: access token request failed. Got answer: {}".format(
+                error_text)
+        _log.debug(msg)
+        return web.Response(body = msg.encode('utf-8'))
+
+    # If we got a good response, we get some JSON with the access token in it.
+    token_data = yield from response.json()
+    _log.debug("access token request returned:\n{}\n".format(token_data))
+    access_token = token_data["access_token"]
+
+
+    # now we're all set. the user is authenticated, we are authorized. let's
+    # just do some calls to Feide Connect and present them to the user.
     out = web.StreamResponse()
     out.content_type = "text/plain"
     out.start(request)
@@ -100,19 +141,21 @@ def login_success_page(request):
     yield from out.drain()
 
     queries = [ # method, url, params
-            ('GET', 'https://auth.feideconnect.no/userinfo', {}),
             ('GET', 'https://groups-api.feideconnect.no/groups/me/groups', {}),
+            ('GET', 'https://auth.dev.feideconnect.no/userinfo', {}),
             ('GET', 'https://api.feideconnect.no/peoplesearch/orgs', {}),
             ('GET', 'https://api.feideconnect.no/peoplesearch/people',
               { 'org' : 'uninett.no',
                 'query' : 'andreas'}),
             ]
-    reqs = [ connect_oauth.request(q[0], q[1], params = q[2]) for q in queries ]
+    headers = { "Authorization": "Bearer {}".format(access_token) }
+    reqs = [ aiohttp.request(q[0], q[1], params = q[2], headers = headers)
+            for q in queries ]
+
     for req in asyncio.as_completed(reqs):
         response = yield from req
         try:
-            text = yield from response.read()
-            text = text.decode('utf-8')
+            text = yield from response.text()
         except Exception as e:
             text = "Error: {}".format(e)
 
@@ -131,17 +174,6 @@ def init_server(loop):
     app.router.add_route('GET', '/', main_page)
     app.router.add_route('GET', '/login/', login_page)
     app.router.add_route('GET', '/login_success/', login_success_page)
-
-    global connect_oauth
-    connect_oauth = FeideConnectClient(
-            client_id = _config["client_id"],
-            client_secret = _config["client_secret"],
-            # the redirect_uri parameter is optional in OAuth, but not in
-            # OpenID, which Feide Connect also supports. If you enable OpenID
-            # by specifying the "openid" scope in get_authorize_url, you must have
-            # this (and perhaps even more!)
-            redirect_uri = "http://localhost:{}/login_success/".format(_config["port"])
-            )
 
     srv = yield from loop.create_server(
             app.make_handler(), '0.0.0.0', _config["port"])
