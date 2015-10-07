@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import logging
-import asyncio
 import urllib.parse
 
 import click
-import aiohttp
-from aiohttp import web
+import bottle
+import requests
 
 
 _config = {
@@ -24,14 +23,13 @@ _log = logging.getLogger(__name__)
 
 ### HTTP handlers, ordered by OAuth2 flow
 
-@asyncio.coroutine
-def main_page(request):
-    text = """<a href="/login/">Login with Feide Connect</a>"""
-    return web.Response(body = text.encode('utf-8'))
+@bottle.route("/")
+def main_page():
+    return """<a href="/login/">Login with Feide Connect</a>"""
 
 
-@asyncio.coroutine
-def login_page(request):
+@bottle.route("/login/")
+def login_page():
     # we want the user to log in using Feide Connect, so we'll redirect her
     # there. In OAuth parlance, this constitutes an "Authorization Request"
     # (check http://tools.ietf.org/html/rfc6749#section-4.1.1 ).
@@ -66,30 +64,28 @@ def login_page(request):
     redirect_url = "{}?{}".format(auth_url, urllib.parse.urlencode(params))
 
     _log.debug("login page redirects user to {}".format(redirect_url))
-    return web.HTTPFound(redirect_url)
+    return bottle.redirect(redirect_url)
 
 
-@asyncio.coroutine
-def login_success_page(request):
+@bottle.route("/login_success/")
+def login_success_page():
     # Feide Connect redirected the user here and gave us an "authorization
     # code" in the query string.
     _log.debug("login success page")
-    code = request.GET.get('code', None)
+    code = bottle.request.params.get('code', None)
     if not code:
-        return web.Response(body = "No 'code' parameter, no login.".encode('utf-8'))
+        return "No 'code' parameter, no login."
     # Feide Connect also sent back the "state" parameter we gave it earlier
-    state = request.GET.get("state", None)
+    state = bottle.request.params.get("state", None)
     if state != "some_opaque_string":
-        return web.Response(body = "No (or wrong) 'state' parameter, no login.".
-                encode('utf-8'))
+        return "No (or wrong) 'state' parameter, no login."
 
     # we are now supposed to use the authorization code to get an access token
     # from Feide Connect, through a so-called "Access Token Request" HTTP POST
     # (http://tools.ietf.org/html/rfc6749#section-4.1.3 ).
     token_req_url = "https://auth.feideconnect.no/oauth/token"
 
-    auth_header = aiohttp.helpers.BasicAuth(login = _config["client_id"],
-            password = _config["client_secret"])
+    auth = requests.auth.HTTPBasicAuth(_config["client_id"], _config["client_secret"])
     # the client (i.e. we) have to send both the client id and the client secret to
     # Feide Connect. This can be done either with an HTTP basic auth header, or by
     # including a client_secret post parameter. We do the HTTP basic auth header.
@@ -113,32 +109,27 @@ def login_success_page(request):
             }
     _log.debug("POSTing access token request with code {} to {}".format(
         code, token_req_url))
-    response = yield from aiohttp.post(token_req_url,
-            #data = params, headers = headers)
-            data = params, auth = auth_header)
-            #data = params)
+    response = requests.post(token_req_url, params = params, auth = auth) 
 
     # if response's HTTP status is not 200, we must bail out
-    if response.status != 200:
-        error_text = yield from response.text()
+    if response.status_code != 200:
+        error_text = response.text
         msg = "error: access token request failed. Got answer: {}".format(
                 error_text)
         _log.debug(msg)
-        return web.Response(body = msg.encode('utf-8'))
+        return msg
 
     # If we got a good response, we get some JSON with the access token in it.
-    token_data = yield from response.json()
+    token_data = response.json()
     _log.debug("access token request returned:\n{}\n".format(token_data))
     access_token = token_data["access_token"]
 
 
     # now we're all set. the user is authenticated, we are authorized. let's
     # just do some calls to Feide Connect and present them to the user.
-    out = web.StreamResponse()
-    out.content_type = "text/plain"
-    out.start(request)
-    out.write("Login successful. Doing some API calls now:\n\n".encode('utf-8'))
-    yield from out.drain()
+    out = ""
+    bottle.response.content_type = "text/plain"
+    out += "Login successful. Doing some API calls now:\n\n"
 
     queries = [ # method, url, params
             ('GET', 'https://groups-api.feideconnect.no/groups/me/groups', {}),
@@ -149,35 +140,15 @@ def login_success_page(request):
                 'query' : 'andreas'}),
             ]
     headers = { "Authorization": "Bearer {}".format(access_token) }
-    reqs = [ aiohttp.request(q[0], q[1], params = q[2], headers = headers)
+    responses = [ requests.request(q[0], q[1], params = q[2], headers = headers)
             for q in queries ]
 
-    for req in asyncio.as_completed(reqs):
-        response = yield from req
-        try:
-            text = yield from response.text()
-        except Exception as e:
-            text = "Error: {}".format(e)
+    for response in responses:
+        out += "{}\n{}\n\n\n".format(response.url, response.text)
 
-        out.write("{}\n{}\n\n\n".format(response.url, text).encode('utf-8'))
-        yield from out.drain()
-
-    yield from out.write_eof()
     return out
 
 
-
-
-@asyncio.coroutine
-def init_server(loop):
-    app = web.Application(loop = loop)
-    app.router.add_route('GET', '/', main_page)
-    app.router.add_route('GET', '/login/', login_page)
-    app.router.add_route('GET', '/login_success/', login_success_page)
-
-    srv = yield from loop.create_server(
-            app.make_handler(), '0.0.0.0', _config["port"])
-    return srv
 
 
 ### Program start and main loop
@@ -194,16 +165,14 @@ def run(**kwargs): # kwargs are port, client_id, client_secret
     Press Ctrl+C to terminate.
     """
     logging.basicConfig(level = logging.DEBUG)
-    loop = asyncio.get_event_loop()
 
     _config.update(kwargs)
 
-    loop.run_until_complete(init_server(loop))
-    _log.info("Service listening on port {}. Press Ctrl+C to terminate.".
+    _log.info("Starting service on port {}. Press Ctrl+C to terminate.".
             format(kwargs["port"]))
 
     try:
-        loop.run_forever()
+        bottle.run(host = "0.0.0.0", port = _config["port"], debug = True)
     except KeyboardInterrupt:
         _log.info("caught KeyboardInterrupt, terminating")
 
