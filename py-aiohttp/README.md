@@ -2,6 +2,8 @@
 
 Minimalistic service written in Python3 using the aiohttp server. Just lets a user log in and prints some info it can get about the user.
 
+Note that the call to `/userinfo` fails. I haven't figured out yet why this one request fails. All the others work fine. (It might be a bug in aiohttp, not sending the auth header even though it is specified.)
+
 
 ### Configure it
 
