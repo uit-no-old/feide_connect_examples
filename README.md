@@ -11,6 +11,7 @@ This whole thing was started when preparing a presentation about Connect for dev
 ## Examples
 
 * Python backends
+    * [py-bottle-requests](py-bottle-requests/): blocking webserver using the [Bottle](http://bottlepy.org) web framework and the [requests](http://python-requests.org) HTTP client library. No OAuth library.
     * [py-aiohttp](py-aiohttp-aioauth/): asynchronous webserver with [asyncio](https://docs.python.org/3/library/asyncio.html) (Python 3.4+). Using the [aiohttp](http://aiohttp.readthedocs.org/en/stable/index.html) HTTP client/server for painless HTTP. No OAuth library.
     * [py-aiohttp-aioauth](py-aiohttp-aioauth/): Like the above, but using OAuth client plugin for aiohttp, [aioauth\_client](https://github.com/klen/aioauth-client).
 
