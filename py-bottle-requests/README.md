@@ -1,6 +1,6 @@
-## aiohttp example service using Feide Connect
+## bottle + requests example service using Feide Connect
 
-Minimalistic service written in Python3 using the aiohttp server. Just lets a user log in and prints some info it can get about the user.
+Minimalistic service written in Python3 using the [Bottle](http://bottlepy.org/) web framework and the [requests](http://python-requests.org) HTTP library. Just lets a user log in and prints some info it can get about the user.
 
 
 ### Configure it
