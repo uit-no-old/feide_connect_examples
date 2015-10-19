@@ -1,0 +1,27 @@
+include ./head.jade
+body(ng-app="app")
+  .container(ng-controller="Ctrl", ng-init="init('#{token}')")
+      h3 Hello {{user.user.name}}
+      | {{value}}
+      br
+      .well {{token|json}}
+      br
+      button.btn.btn-danger(ng-click="logout('test');") logout
+      br
+      button.btn(ng-click="get_user()") Get user info
+      br
+      .well {{user|json}}
+      button.btn(ng-click="get_groups()") Get groups
+      br
+      ul.list-group(ng-repeat="group in groups")
+          li.list-group-item
+             h2 {{group.displayName}}
+             div(ng-if="group.membership")
+                 button.btn.btn-info(ng-click="get_group_members(group);") Get members
+                 ul.list-group(ng-repeat="member in group.members")
+                    li.list-group-item {{member.name}} ({{member.membership.basic}})
+                 button.btn.btn-info(ng-click="get_chatting(group);") Chat!
+                 .well {{group.chat}}
+
+
+  include ./footer.jade

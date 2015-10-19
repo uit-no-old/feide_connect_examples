@@ -1,0 +1,12 @@
+{
+    "name": "feide",
+    "description": "Test of Feide Connect with groups",
+    "version": "0.0.1",
+    "private": true,
+    "dependencies": {
+      "express": "x",
+      "jade": "x",
+      "passport": "x",
+      "passport-feideconnect-oauth2": "x"
+    }
+}
